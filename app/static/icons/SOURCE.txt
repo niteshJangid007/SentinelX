@@ -1,0 +1,2 @@
+@tabler/icons 3.49.0
+MIT license. Package integrity verified from npm registry.

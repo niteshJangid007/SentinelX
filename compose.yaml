@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sentinelx}
+      POSTGRES_USER: ${POSTGRES_USER:-sentinelx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate a local POSTGRES_PASSWORD in .env before starting}
+    ports:
+      - "127.0.0.1:${SENTINELX_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - sentinelx-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    shm_size: 128m
+    mem_limit: 768m
+    cpus: 2
+    security_opt:
+      - no-new-privileges:true
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sentinelx}:${POSTGRES_PASSWORD:?Generate a local POSTGRES_PASSWORD in .env before starting}@db:5432/${POSTGRES_DB:-sentinelx}
+      SECUREFLOW_DB: /data/secureflow.db
+    volumes:
+      - secureflow-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=268435456,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 2
+volumes:
+  sentinelx-postgres:
+  # Retained declaration: existing SQLite data must not be deleted during migration.
+  secureflow-data:

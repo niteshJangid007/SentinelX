@@ -1,0 +1,64 @@
+# Standalone configuration: docker compose --env-file .env.production -f compose.production.yaml up --build -d --wait
+# Do not merge with the local compose.yaml: this stack intentionally publishes no database or API ports.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sentinelx}
+      POSTGRES_USER: ${POSTGRES_USER:-sentinelx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a generated URL-safe production database password}
+    volumes:
+      - sentinelx-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [database]
+    shm_size: 128m
+    mem_limit: 768m
+    security_opt: ["no-new-privileges:true"]
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sentinelx}:${POSTGRES_PASSWORD:?Set a generated URL-safe production database password}@db:5432/${POSTGRES_DB:-sentinelx}
+      SENTINELX_ENV: production
+      SECUREFLOW_COOKIE_SECURE: "true"
+      SECUREFLOW_PUBLIC_ORIGIN: https://${SENTINELX_DOMAIN:?Set the public DNS hostname without scheme or path}
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs: ["/tmp:size=268435456,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    mem_limit: 768m
+    networks: [default, database]
+  proxy:
+    image: caddy:2-alpine
+    environment:
+      SENTINELX_DOMAIN: ${SENTINELX_DOMAIN:?Set the public DNS hostname without scheme or path}
+      ACME_EMAIL: ${ACME_EMAIL:?Set the TLS certificate contact email}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    networks: [default]
+volumes:
+  sentinelx-postgres:
+  # Historical data retained. Do not remove before verified migration/backup.
+  secureflow-data:
+  caddy-data:
+  caddy-config:
+networks:
+  database:
+    internal: true

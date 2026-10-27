@@ -1,0 +1,16 @@
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+{$SENTINELX_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	request_body {
+		max_size 21MB
+	}
+	reverse_proxy api:8000
+}
