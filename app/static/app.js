@@ -25,7 +25,7 @@
   }
   function clearSession(message = '') {
     state.token = null; state.user = null; state.data = {}; state.epoch++; state.search = '';
-    document.querySelectorAll('dialog').forEach(d => d.remove());
+    $('detail-dialog')?.remove();
     $('app-shell').hidden = true; $('auth-section').hidden = false;
     $('main-content').replaceChildren();
     if ($('global-search')) $('global-search').value = '';
@@ -73,7 +73,8 @@
   }
   function navigate(view) { state.view = view; state.search = ''; if ($('global-search')) $('global-search').value = ''; render(); }
   function hero(title, subtitle, actions = []) {
-    return node('section', {class: 'hero'}, node('div', {class: 'hero-copy'}, node('p', {class: 'eyebrow'}, state.view === 'overview' ? 'SECURITY OVERVIEW' : 'SENTINELX / ' + state.view.toUpperCase()), node('h1', {}, title), node('p', {}, subtitle)), node('div', {class: 'hero-actions'}, actions));
+    const split=title.lastIndexOf(' ');const lead=split<0?'':title.slice(0,split+1);const accent=split<0?title:title.slice(split+1);
+    return node('section', {class: 'hero'}, node('div', {class: 'hero-copy'}, node('p', {class: 'eyebrow hero-kicker'}, state.view === 'overview' ? 'SECURITY OVERVIEW' : 'SENTINELX / ' + state.view.toUpperCase()), node('h1', {class:'hero-title'},lead,node('em',{class:'hero-accent'},accent)), node('p', {class:'hero-description'}, subtitle)), node('div', {class: 'hero-actions'}, actions));
   }
   function coverageNotice() { return node('div', {class: 'coverage-notice'}, node('strong', {}, 'Baseline analysis · release protection active'), node('p', {}, 'Secret patterns, selected Python rules and IaC checks run on the backend. SCA, container image scanning and DAST are not configured. Releases remain blocked while coverage is incomplete.')); }
   function scanRows(scans) {
@@ -242,7 +243,7 @@
   function closeDialog(){const current=$('detail-dialog');if(current){current.close();current.remove();}lastFocused?.focus();}
   function dialog(title,content,actions=[]) {
     closeDialog();lastFocused=document.activeElement;
-    const d=node('dialog',{id:'detail-dialog',class:'modal-card','aria-labelledby':'detail-title'},node('div',{class:'panel-header'},node('h2',{id:'detail-title'},title),button('Close',closeDialog,'ghost')),content,node('div',{class:'hero-actions'},actions));
+    const d=node('dialog',{id:'detail-dialog',class:'modal-card edition-modal','aria-labelledby':'detail-title'},node('div',{class:'panel-header'},node('h2',{id:'detail-title'},title),button('Close',closeDialog,'ghost')),content,node('div',{class:'hero-actions'},actions));
     d.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});document.body.append(d);d.showModal();
   }
   function gateTable(gates=[]) {return table(['Engine','Tool','Status','Findings','Duration'],gates.map(g=>[String(g.scanner||g.name||'—').toUpperCase(),g.tool||'—',badge(g.status),g.findings??0,g.duration_ms==null?'—':`${g.duration_ms} ms`]),'No gate results','The scan has not produced engine results.');}
@@ -277,6 +278,7 @@
     if($('page-title'))$('page-title').textContent=state.view==='overview'?'Overview':state.view[0].toUpperCase()+state.view.slice(1);
     document.querySelectorAll('[data-view]').forEach(control=>{const active=control.dataset.view.replace(/^view-/,'')===state.view;control.classList.toggle('active',active);if(active)control.setAttribute('aria-current','page');else control.removeAttribute('aria-current');});
     ({overview:renderOverview,repositories:renderRepositories,scans:renderScans,findings:renderFindings,reports:renderReports,policies:renderPolicies,audit:renderAudit}[state.view]||renderOverview)(root);
+    root.dataset.currentView=state.view;document.dispatchEvent(new CustomEvent('sentinelx:view-rendered',{detail:{key:'workspace:'+state.view}}));
   }
   async function restoreSession() {
     const form=$('auth-form'), submit=$('auth-submit'), toggle=$('auth-mode')||$('auth-toggle');

@@ -19,6 +19,12 @@ import zipfile
 from urllib.parse import urlparse, parse_qs
 
 from playwright.sync_api import expect, sync_playwright
+from browser_theme import (
+    assert_no_overflow,
+    first_visit_editions,
+    assert_safe_storage,
+    exercise_portal_editions,
+)
 
 BASE_URL = os.getenv("SECUREFLOW_TEST_BASE_URL", "http://127.0.0.1:8001")
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,11 +79,22 @@ def exercise_crud(page):
         ).json()
         == []
     )
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    scene_before_search = page.locator("html").get_attribute("data-scene-sequence")
     page.locator("#global-search").fill(updated_name)
     expect(page.locator("tr").filter(has_text=updated_name)).to_be_visible()
     page.locator("#global-search").fill("definitely-absent-" + demo_name)
     expect(page.locator("tr").filter(has_text=updated_name)).to_have_count(0)
     page.locator("#global-search").fill("")
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    assert page.locator("html").get_attribute("data-scene-sequence") == scene_before_search, (
+        "Search replays scene entrance animation"
+    )
+
     page.locator("#project-name").fill(updated_name)
     page.locator("#repo-url").fill("https://github.com/octocat/Hello-World")
     page.locator("#repo-branch").fill("master")
@@ -116,7 +133,11 @@ def exercise_crud(page):
         ).json()
         == []
     )
-    page.screenshot(path=str(ROOT / "docs" / "screenshots" / "crud-demo.png"), full_page=True)
+    page.screenshot(
+        animations="disabled",
+        path=str(ROOT / "docs" / "screenshots" / "crud-demo.png"),
+        full_page=True,
+    )
     repo_row.get_by_role("button", name="Disconnect repository", exact=True).click()
     disconnect = page.locator("#disconnect-repository-form")
     expect(
@@ -158,7 +179,7 @@ def run():
     with sync_playwright() as playwright:
         executable = os.getenv("BROWSER_EXECUTABLE")
         browser = playwright.chromium.launch(executable_path=executable)
-        page = browser.new_page(viewport={"width": 1440, "height": 1024}, accept_downloads=True)
+        page = browser.new_page(viewport={"width": 1364, "height": 686}, accept_downloads=True)
         page.on("pageerror", lambda error: failures.append(str(error)))
         page.on(
             "response",
@@ -180,6 +201,7 @@ def run():
             else None,
         )
         page.goto(BASE_URL)
+        first_visit_editions(page, browser, BASE_URL, screenshots, "user")
         asset_urls = page.locator("script[src], link[rel=stylesheet]").evaluate_all(
             "elements => elements.map(element => element.src || element.href)"
         )
@@ -202,18 +224,7 @@ def run():
         page.get_by_label("Password", exact=True).fill("Browser-test-password-42!")
         page.get_by_role("button", name="Create account", exact=True).click()
         expect(page.locator("#app-shell")).to_be_visible()
-        expect(
-            page.get_by_role("heading", name="Understand your repository risk.", exact=True)
-        ).to_be_visible()
-        page.mouse.move(0, 0)
-        assert (
-            page.locator(".sidebar").evaluate("element => getComputedStyle(element).width")
-            == "80px"
-        ), "Old wide navigation theme loaded"
-        primary_color = page.locator(".hero .button.primary").first.evaluate(
-            "element => getComputedStyle(element).backgroundColor"
-        )
-        assert primary_color == "rgb(0, 127, 255)", "Old green primary action theme loaded"
+        expect(page.locator("#main-content h1")).to_be_visible()
         page.reload()
         expect(page.locator("#app-shell")).to_be_visible()
 
@@ -283,9 +294,8 @@ def run():
         assert downloaded_report["scan"]["findings"]
         assert hostile_name == downloaded_report["project"]["name"]
         assert page.evaluate("window.__xss") is None
-        assert page.evaluate("Object.keys(localStorage).length") == 0, (
-            "Authentication persisted in localStorage"
-        )
+        assert_safe_storage(page)
+        assert page.evaluate("Object.keys(sessionStorage).length") == 0
         assert page.evaluate("Object.keys(sessionStorage).length") == 0, (
             "Authentication persisted in sessionStorage"
         )
@@ -372,25 +382,12 @@ def run():
         assert all(
             cookie["value"] not in page.evaluate("document.cookie") for cookie in auth_cookies
         )
-        expect(page.locator(".overview-metrics")).to_be_visible()
-        expect(page.locator(".overview-metrics .metric-card")).to_have_count(4)
-        expect(page.locator(".overview-content .repository-activity")).to_be_visible()
-        expect(page.locator(".overview-content .release-summary")).to_be_visible()
-        expect(page.locator(".engine-strip")).to_be_visible()
-        engine_box = page.locator(".engine-strip").bounding_box()
-        assert engine_box is not None
-        engine_bottom = engine_box["y"] + engine_box["height"]
-        print(
-            json.dumps(
-                {
-                    "desktop_viewport": {"width": 1440, "height": 1024},
-                    "engine_strip_bottom": engine_bottom,
-                }
-            ),
-            flush=True,
+        exercise_portal_editions(page, BASE_URL, screenshots, "user")
+        page.set_viewport_size({"width": 1364, "height": 686})
+        page.locator("[data-view=overview]:visible").first.click()
+        page.screenshot(
+            animations="disabled", path=str(screenshots / "dashboard.png"), full_page=False
         )
-        assert engine_bottom <= 1024, "Security engines extend beyond the desktop design target"
-        page.screenshot(path=str(screenshots / "dashboard.png"), full_page=False)
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
             page.evaluate(
@@ -399,7 +396,9 @@ def run():
         )
         page.locator("[data-view=findings]").first.click()
         expect(page.get_by_text("Dynamic code execution", exact=True).first).to_be_visible()
-        page.screenshot(path=str(screenshots / "mobile-findings.png"), full_page=True)
+        page.screenshot(
+            animations="disabled", path=str(screenshots / "mobile-findings.png"), full_page=True
+        )
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
             "Mobile findings overflow horizontally"
         )
@@ -414,9 +413,7 @@ def run():
         ]:
             page.locator(f"[data-view={view}]").first.click()
             expect(page.locator("#main-content h1")).to_be_visible()
-            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (
-                f"Mobile overflow on {view}"
-            )
+            assert_no_overflow(page, f"User final mobile {view}")
         page.locator("#logout-button").click()
         expect(page.locator("#auth-section")).to_be_visible()
         page.reload()

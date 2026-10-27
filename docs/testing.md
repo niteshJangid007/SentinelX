@@ -2,6 +2,14 @@
 
 Run `bash scripts/check.sh` from the checkout after installing requirements.lock into .venv. CI uses the same script with PYTHON_BIN=python. It runs separate unit, integration and security suites, writes JUnit XML in ignored test-results/, and starts a real HTTP server against a temporary database for a vulnerable ZIP scan-to-report smoke test. The server and temporary database are cleaned up automatically. Tests use synthetic credentials, malicious archive fixtures, and temporary databases. No public services are attacked.
 
+## Current Gold / Street validation
+
+The current full Python suite has **196 passing tests** against live PostgreSQL, with no skipped tests and one upstream Starlette/AnyIO deprecation warning. This supersedes the historical counts below. Ruff formatting/correctness lint, JavaScript syntax, and `bash scripts/check.sh` passed, including the real HTTP scan/report smoke test.
+
+The redesign preserves real backend workflows. Browser acceptance checks both Gold and Street across all seven workspace views and six administrator views at desktop1364x686, tablet768x1024 and mobile390x844. Checks include actual loaded local fonts, keyboard edition selection, remembered preference, reduced motion, scene stability during refresh/filter, entrance overflow, resting control bounds and horizontal table scrolling. Actual CRUD, ZIP scan/report download, hostile-name escaping, HttpOnly sessions and reload/logout behavior remain covered. Final visual evidence is recorded in `design-qa.md`.
+
+A test-isolation defect was corrected before validation: an autouse fixture clears inherited database/production configuration and selects disposable SQLite by default; explicit PostgreSQL tests use their own generated schemas. Regression checks prove a disposable PostgreSQL sentinel survives nested pytest and that HTTP smoke ignores an inherited database URL. These fixes prevent ordinary test runs from modifying configured application data. They do not change runtime database configuration.
+
 ## TDD contract
 
 New features and fixes start with failing behavior tests, followed by implementation and green tests, then refactoring. Feature completion requires unit tests, relevant integration tests, adversarial verification, and recorded evidence. Existing tests added after implementation are regression/characterization coverage; the initial backend was not developed entirely test-first. Repository AGENTS.md carries these requirements into future work.

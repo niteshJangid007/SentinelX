@@ -88,10 +88,13 @@ Both workspace and administrator sessions now restore through separate HttpOnly 
 
 The overview shows an accessible vulnerability severity distribution bar derived from actual open findings. Follow the repository connection steps, start a scan, and open its report using the completion notice.
 
-## Option 3 visual system
+## Gold and Street visual editions
 
-The approved desktop design uses a compact icon rail and horizontal tabs, black and deep-blue surfaces, blue primary actions and neon-red vulnerability/blocked-release emphasis. The severity strip and repository activity come from saved API results; unavailable scanners remain explicitly labeled. Both workspace and administrator portals share the updated visual system. Inter fonts and Tabler SVG icons are served locally with licenses in app/static, without third-party runtime requests. No database migration is needed for this visual update.
+The current interface is inspired by the user-provided levigav.com recording. Choose **Gold** for warm archival textures, cream serif headings, italic gold accents and frosted controls; choose **Street** for charcoal paper textures, brush lettering, red actions and yellow labels. The edition preference is saved locally; authentication stays in separate HttpOnly cookies. A first-visit chooser is keyboard-accessible and dismissible, and the edition switch remains available on login, workspace and admin pages.
 
+[Gold preview](docs/images/dashboard.png) · [Street preview](docs/images/street.png) · [Administrator preview](docs/images/admin.png)
+
+Both editions cover all workspace/admin views, CRUD forms, findings, scan reports, policies and audit screens. Page reveals and pointer/hover effects respect reduced-motion preferences and do not replay during scan polling or filtering. Fonts, textures and icons are served locally. Background artwork was generated for Sentinelx; no personal portraits or external-site branding were copied.
 
 ## Final source and demonstration
 

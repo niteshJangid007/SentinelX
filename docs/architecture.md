@@ -1,34 +1,38 @@
-# Backend architecture
+# Sentinelx architecture
 
 ```text
-Authenticated API
-  -> owner-scoped SQLite resources and audit events
-  -> source scan task
-     -> GitHub source archive
-     -> bounded, validated extraction
-     -> source-only heuristic engines
-     -> normalized findings and explicit engine results
-  -> risk and policy evaluation
-  -> report and deployment decision record
+Browser workspace / administrator portal
+  -> local Gold/Street presentation preference and accessible scene motion
+  -> same-origin FastAPI API with separate HttpOnly cookie sessions
+  -> role and ownership authorization
+  -> PostgreSQL users, sessions and owner-scoped resources
+  -> in-process source scan task
+     -> public GitHub branch archive or uploaded ZIP
+     -> bounded in-memory archive validation (no extraction or source execution)
+     -> secret patterns, selected Python AST checks and IaC/configuration rules
+     -> normalized findings and explicit unavailable engine states
+  -> weighted severity score and policy evaluation
+  -> persisted findings, reports, audit events and deployment eligibility record
 ```
 
-Authentication uses salted PBKDF2 password hashes and expiring opaque bearer sessions stored by token hash. Resource queries include the authenticated owner. Write and policy operations enforce role checks on the server. Audit events record security-relevant API actions; this local database audit trail is not a tamper-resistant external logging service.
+## Modules and boundaries
 
-GitHub repository URLs and refs are validated before retrieval. Archive members must not escape the temporary scan directory, introduce symlinks, or exceed processing limits. The API must never run a repository's setup/build commands. Reports redact detected secret material at the scanner boundary.
+- `app/auth.py`: PBKDF2 password hashing, opaque hashed sessions, independent user/admin cookies, CSRF/origin checks and bounded single-process authentication throttling.
+- `app/projects.py` and `resource_validation.py`: project/repository CRUD/search, owner checks, explicit deletion confirmation, active-scan conflicts and transactional deletion/auditing.
+- `app/db.py`: parameterized SQLite compatibility/PostgreSQL adapter. PostgreSQL is the normal deployment; production cannot silently fall back to SQLite. Domain resources currently use JSON text records, not normalized relational domain tables.
+- `app/scanner.py`: archive/URL restrictions and baseline heuristics. Submitted source, dependency installers and build hooks are never executed. Detected secret values are omitted from reports.
+- `app/main.py`: scan orchestration, reports, findings, policy, dashboard and eligibility APIs. FastAPI background tasks run inside one API process; they are not a durable worker queue. Restart marks interrupted jobs failed.
+- `app/admin.py` and `manage.py`: explicit platform membership, operator bootstrap with hidden password prompts, cross-account review, guarded role/access updates and audit events. Public registration grants no platform-admin membership.
+- `app/web.py`: same-origin HTML/assets, content-hash CSS/JS URLs, no-store responses and restrictive browser security headers.
+- `app/static/app.js`, `admin.js` and `theme.js`: actual API-backed user/admin views. Theme choice alone uses local storage; credentials remain in HttpOnly cookies. Gold/Street styling spans all pages and dialogs; motion ignores polling/filter rebuilds and respects reduced-motion preferences.
 
-The frontend is a future consumer of the OpenAPI contract. It should show source acquisition, individual scanner states, findings, score, policy reasons, and deployment decisions separately. It must not imply that the browser performs scans or that a policy decision deploys software.
+## Current limits
 
-## Production follow-up
+The scanning engines are limited heuristics, not Gitleaks/Semgrep/Trivy/ZAP integrations. SCA, image scanning and DAST remain unconfigured; incomplete required coverage blocks releases. The observed risk score is a weighted count, not CVSS. Scans fetch branch archives without immutable commit attribution. Repeated detections are currently stored as separate finding occurrences; unique vulnerability lifecycle/deduplication needs additional work. Deployment records do not execute deployments. Audit events are local database records, not an immutable external audit service.
 
-- GitHub App authorization with per-installation scope, webhook verification and delivery deduplication.
-- Durable task broker and workers with per-job isolation, cancellation, resource limits, and recovery.
-- Versioned security-tool images and trusted, updated vulnerability databases.
-- Organization membership, invitation-based role administration, quotas and retention.
-- Database migrations, centralized immutable audit export, authentication throttling and operational monitoring.
-- Explicit approval workflow for exceptions; deployment credentials and actual deployment integration.
-- DAST target ownership verification and network restrictions before enabling active scans.
+The supported runtime is one API worker. Multi-instance scaling needs a durable job queue, cross-process state/locks, shared ingress rate limiting, connection pooling and resource quotas. PostgreSQL schema migrations, normalized/indexed domain querying, GitHub App/private access, organization collaboration, calibrated detection benchmarks and actual CI/deployment orchestration remain future work.
 
-These are implementation boundaries, not existing capabilities.
+Tests use temporary SQLite databases by default and explicitly created disposable PostgreSQL schemas for live integration. Inherited DATABASE_URL and production environment settings are cleared before ordinary tests. The smoke child process also overrides these settings, preventing accidental operations against the caller's real database.
 
 ## Restricted Docker builder fallback
 

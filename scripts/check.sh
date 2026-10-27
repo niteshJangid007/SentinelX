@@ -22,7 +22,13 @@ with tempfile.TemporaryDirectory(prefix='secureflow-check-') as directory:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
     origin = f'http://127.0.0.1:{port}'
-    environment = {**os.environ, 'SECUREFLOW_DB': str(Path(directory) / 'smoke.db')}
+    environment = {
+        **os.environ,
+        'DATABASE_URL': '',
+        'SENTINELX_ENV': 'test',
+        'SECUREFLOW_ENV': 'test',
+        'SECUREFLOW_DB': str(Path(directory) / 'smoke.db'),
+    }
     with open(Path(directory) / 'server.log', 'w+') as log:
         process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port), '--no-proxy-headers'], env=environment, stdout=log, stderr=log)
         try:
