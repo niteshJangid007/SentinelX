@@ -59,3 +59,9 @@ Before creating any account in a fresh PostgreSQL database, back up your SQLite 
 ```
 
 The helper starts PostgreSQL and imports users, password hashes, projects/scans/reports/audits and existing access controls. It never modifies the SQLite source, does not copy sessions, and refuses a nonempty target instead of merging accounts. Then create your administrator with `scripts\start.py create-admin` and start the dashboard. The importer is transactional; source validation occurs before destination data writes.
+
+## Local startup: password authentication failed
+
+An existing PostgreSQL Docker volume retains its original database-role password even if `.env` is regenerated or edited. A healthy PostgreSQL container does not prove the application's password is accepted. Do not delete the database volume or recreate user accounts.
+
+For the project's local Docker database only, stop the host API and run `Repair-Database.cmd` on Windows, or `.venv/bin/python scripts/repair_postgres.py` on Linux. This explicit operator action synchronizes the database role password with the existing local configuration through the container's local socket, then verifies a TCP login. It does not change application account passwords, drop databases, remove volumes, or replace `.env`. It never passes the password on the command line or prints it. External DATABASE_URL and production deployments are deliberately refused; their database credentials must be coordinated with the configured server/provider.
