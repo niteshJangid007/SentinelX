@@ -54,6 +54,10 @@ Endpoints are under `/api/v1`: `/auth/register`, `/auth/login`, `/projects`, `/r
 
 The browser dashboard uses same-origin session cookies. Native clients can use `Authorization: Bearer <access_token>`; cookie-authenticated write requests must provide matching same-origin evidence. Never commit tokens or log authorization/cookie headers. Registration creates an administrator of that account's own workspace. Each account's resources are isolated by ownership; this initial backend is not a shared organization/tenant collaboration system.
 
+## JavaScript and HTML review checks
+
+New scans inspect dynamic HTML writes and browser permission-decision patterns, including executable inline HTML scripts. Findings include source locations and low-confidence review guidance; they do not claim confirmed XSS or backend authorization bypass. [Supported rules and limits](docs/javascript-scanning.md).
+
 ## PHP runtime advisories
 
 New scans detect declared PHP runtimes and match a reviewed offline catalog for **CVE-2026-109618** and **CVE-2026-109619**. Reports include evidence locations, confidence and patched-version guidance. Floating versions and Composer requirements remain unknown rather than being called safe. See [PHP runtime checks](docs/php-runtime-scanning.md) for supported inputs and limitations. This is a two-advisory runtime check, not a general dependency/container scanner.
@@ -62,7 +66,7 @@ New scans detect declared PHP runtimes and match a reviewed offline catalog for 
 
 Source files are treated as untrusted data. The scanner does not install repository dependencies, run project code, run Git hooks, build containers, or deploy workloads. Source acquisition is restricted to GitHub HTTPS and archive contents are bounded and validated before inspection.
 
-The built-in scanners are limited heuristics for potential exposed secrets, Python source issues, and infrastructure/container configuration issues. Their findings are leads for human review. A clean heuristic scan is not evidence that the application is vulnerability-free. Full Gitleaks, Semgrep/CodeQL, dependency CVE intelligence, Checkov, Trivy, and ZAP integrations are separate future work unless explicitly identified as executed in a scan result. Private GitHub account OAuth/App authorization and GitHub Actions orchestration are not implemented by merely connecting a public repository URL.
+The built-in scanners are limited heuristics for potential exposed secrets, Python source issues, JavaScript/inline-HTML review signals, and infrastructure/container configuration issues. Their findings are leads for human review. A clean heuristic scan is not evidence that the application is vulnerability-free. Full Gitleaks, Semgrep/CodeQL, dependency CVE intelligence, Checkov, Trivy, and ZAP integrations are separate future work unless explicitly identified as executed in a scan result. Private GitHub account OAuth/App authorization and GitHub Actions orchestration are not implemented by merely connecting a public repository URL.
 
 The unconfigured SCA, container-image, and DAST gates are explicitly reported as NOT_CONFIGURED and block release by default. Risk scores and PASS/WARN/BLOCK outcomes come from recorded findings and policy. Unavailable/failed checks must remain visible; do not interpret a skipped engine as a passed engine. Security reports contain metadata and remediation guidance, not detected secret values.
 

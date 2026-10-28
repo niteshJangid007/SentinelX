@@ -223,7 +223,7 @@
     root.append(panel('All scans','Queued and running scans refresh automatically.',table(['Scan','Project','Source','Branch','Execution','Decision','Risk','Started','Actions'],scanRows(state.data.scans.filter(matches)),'No scans found','Connect a repository or upload a ZIP to begin.')));root.append(coverageNotice());
   }
   function findingDetails(finding) {
-    return node('article',{class:'finding-detail'},node('h3',{},finding.title),node('div',{class:'row-actions'},badge(finding.severity),badge(finding.scanner),badge(finding.status)),node('p',{class:'mono'},`${finding.path || '—'}${finding.line ? ':'+finding.line : ''}`),node('h4',{},'Description'),node('p',{},finding.description || 'No description provided.'),node('h4',{},'Remediation'),node('p',{},finding.remediation || 'Review this finding with your security team.'),finding.cwe && node('p',{},finding.cwe));
+    return node('article',{class:'finding-detail'},node('h3',{},finding.title),node('div',{class:'row-actions'},badge(finding.severity),badge(finding.scanner),badge(finding.status),finding.confidence&&badge('Confidence: '+finding.confidence)),node('p',{class:'mono'},`${finding.path || '—'}${finding.line ? ':'+finding.line : ''}`),node('h4',{},'Description'),node('p',{},finding.description || 'No description provided.'),node('h4',{},'Remediation'),node('p',{},finding.remediation || 'Review this finding with your security team.'),finding.cwe && node('p',{},finding.cwe));
   }
   function showFinding(finding) {
     const content=node('div',{},findingDetails(finding));
@@ -247,7 +247,7 @@
     const d=node('dialog',{id:'detail-dialog',class:'modal-card edition-modal','aria-labelledby':'detail-title'},node('div',{class:'panel-header'},node('h2',{id:'detail-title'},title),button('Close',closeDialog,'ghost')),content,node('div',{class:'hero-actions'},actions));
     d.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});document.body.append(d);d.showModal();
   }
-  function gateTable(gates=[]) {return table(['Engine','Tool','Status','Findings','Duration'],gates.map(g=>[String(g.scanner||g.name||'—').toUpperCase(),g.tool||'—',badge(g.status),g.findings??0,g.duration_ms==null?'—':`${g.duration_ms} ms`]),'No gate results','The scan has not produced engine results.');}
+  function gateTable(gates=[]) {return table(['Engine','Tool','Scope','Status','Findings','Duration'],gates.map(g=>[String(g.scanner||g.name||'—').toUpperCase(),g.tool||'—',g.coverage||'Not recorded in this scan',badge(g.status),g.findings??0,g.duration_ms==null?'—':`${g.duration_ms} ms`]),'No gate results','The scan has not produced engine results.');}
   async function showScan(id) {await action(null,async()=>{
     const scan=await api(`/scans/${encodeURIComponent(id)}`);
     const controls=[];

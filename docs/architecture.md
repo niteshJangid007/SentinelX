@@ -9,7 +9,8 @@ Browser workspace / administrator portal
   -> in-process source scan task
      -> public GitHub branch archive or uploaded ZIP
      -> bounded in-memory archive validation (no extraction or source execution)
-     -> secret patterns, selected Python AST checks and IaC/configuration rules
+     -> secret patterns, selected Python AST checks, JS/inline-HTML review patterns,
+        PHP runtime advisory snapshot and IaC/configuration rules
      -> normalized findings and explicit unavailable engine states
   -> weighted severity score and policy evaluation
   -> persisted findings, reports, audit events and deployment eligibility record

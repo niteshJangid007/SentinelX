@@ -34,6 +34,10 @@ def vulnerable_zip():
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w") as archive:
         archive.writestr("main.py", "value = eval(input())\n")
+        archive.writestr(
+            "index.html",
+            "<script>const allowed = !secure || viewer.id === target.id || viewer.role === 'admin';\nel.innerHTML = userInput;</script>",
+        )
         archive.writestr("Dockerfile", "FROM php:8.3.35-fpm\nUSER root\n")
     return stream.getvalue()
 
@@ -298,6 +302,18 @@ def run():
         expect(
             page.locator("#detail-dialog")
             .get_by_text("CVE-2026-109619: PHP Cross-request use-after-free", exact=False)
+            .first
+        ).to_be_visible()
+        assert {f.get("rule_id") for f in downloaded_report["scan"]["findings"]} >= {
+            "JS-CLIENT-AUTH",
+            "JS-DYNAMIC-HTML",
+        }
+        page.locator("#detail-dialog summary").filter(
+            has_text="Client-side permission decision"
+        ).click()
+        expect(
+            page.locator("#detail-dialog details[open]")
+            .get_by_text("Confidence: low", exact=True)
             .first
         ).to_be_visible()
         assert downloaded_report["scan"]["findings"]

@@ -265,3 +265,17 @@ def test_php_runtime_cves_survive_real_scan_persistence_and_report(client):
     assert {f["cve"] for f in saved if f.get("cve")} == {f["cve"] for f in cves}
     _, other = register(client, "other-php@example.test")
     assert client.get(BASE + "/scans/" + scan["id"] + "/report", headers=other).status_code == 404
+
+
+def test_inline_js_findings_saved_in_api_and_report(client):
+    _, headers = register(client, "javascript-review@example.test")
+    project_id = project(client, headers)
+    source = "<script>\nconst allowed = !secure || viewer.id === target.id || viewer.role === 'admin';\nel.innerHTML = data;\n</script>"
+    result = upload(client, headers, project_id, archive({"index.html": source}))
+    report = client.get(BASE + "/scans/" + result["id"] + "/report", headers=headers).json()
+    findings = report["scan"]["findings"]
+    assert {f["rule_id"] for f in findings} == {"JS-CLIENT-AUTH", "JS-DYNAMIC-HTML"}
+    assert {f["line"] for f in findings} == {2, 3}
+    assert all(f["confidence"] == "low" and f["assessment"] == "review_required" for f in findings)
+    assert next(g for g in report["scan"]["gates"] if g["scanner"] == "sast")["status"] == "WARN"
+    assert client.get(BASE + "/findings", headers=headers).json()

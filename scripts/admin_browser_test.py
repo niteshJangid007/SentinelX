@@ -63,6 +63,10 @@ def run():
         stream = io.BytesIO()
         with zipfile.ZipFile(stream, "w") as archive:
             archive.writestr("main.py", "result = eval(input())\n")
+            archive.writestr(
+                "index.html",
+                "<script>const allowed = viewer.role === 'admin';\nel.innerHTML = userInput;</script>",
+            )
         uploaded = api.post(
             PREFIX + "/projects/" + project.json()["id"] + "/upload",
             headers=member_headers,
@@ -200,6 +204,18 @@ def run():
             assert report["scan"]["id"] == scan_id
             assert report["scan"]["decision"] == "BLOCK"
             assert report["project"]["name"] == hostile_name
+            assert {f.get("rule_id") for f in report["scan"]["findings"]} >= {
+                "JS-CLIENT-AUTH",
+                "JS-DYNAMIC-HTML",
+            }
+            page.locator("#adm-dialog summary").filter(
+                has_text="Client-side permission decision"
+            ).click()
+            expect(
+                page.locator("#adm-dialog details[open]")
+                .get_by_text("Confidence: low", exact=True)
+                .first
+            ).to_be_visible()
             page.locator("#adm-dialog").get_by_role("button", name="Close", exact=True).click()
             assert_safe_storage(page)
             assert page.evaluate("Object.keys(sessionStorage).length") == 0

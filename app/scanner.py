@@ -18,7 +18,7 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from . import php_runtime
+from . import javascript_sast, php_runtime
 
 MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 MAX_TOTAL_BYTES = 50 * 1024 * 1024
@@ -458,6 +458,23 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
                 analysis_errors.append(
                     {"path": path, "reason": "Python parsing failed; SAST coverage incomplete"}
                 )
+        if path.lower().endswith((".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".html", ".htm")):
+            try:
+                js_findings, has_js, incomplete = javascript_sast.scan(path, text, _finding)
+                findings.extend(js_findings)
+                if has_js:
+                    technologies.add("JavaScript/TypeScript")
+                if incomplete:
+                    analysis_errors.append(
+                        {
+                            "path": path,
+                            "reason": "Incomplete JavaScript lexical/inline-script analysis",
+                        }
+                    )
+            except (ValueError, RecursionError):
+                analysis_errors.append(
+                    {"path": path, "reason": "JavaScript/HTML analysis incomplete"}
+                )
         if path.endswith((".js", ".jsx", ".ts", ".tsx")) or path.endswith("package.json"):
             technologies.add("JavaScript/TypeScript")
         if path.endswith("go.mod"):
@@ -491,7 +508,9 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
         {
             "scanner": scanner,
             "name": scanner,
-            "tool": BASELINE,
+            "tool": "Sentinelx Python AST + JS/HTML review patterns v2"
+            if scanner == "sast"
+            else BASELINE,
             "status": "PASS" if not any(f["scanner"] == scanner for f in findings) else "WARN",
             "findings": sum(f["scanner"] == scanner for f in findings),
             "duration_ms": elapsed,
@@ -545,7 +564,8 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
         "analysis_errors": analysis_errors,
         "limitations": [
             "Heuristic secret patterns; not a comprehensive secrets audit.",
-            "SAST rules cover selected Python calls only, without data-flow analysis.",
+            "Python SAST covers selected AST calls only, without data-flow analysis.",
+            javascript_sast.LIMITATION,
             "IaC and Docker checks use a small set of configuration patterns.",
             "General dependency CVEs, container images, live applications and CI execution are not scanned.",
             php_runtime.LIMITATION,
