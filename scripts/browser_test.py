@@ -34,7 +34,7 @@ def vulnerable_zip():
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w") as archive:
         archive.writestr("main.py", "value = eval(input())\n")
-        archive.writestr("Dockerfile", "FROM python:3.12\nUSER root\n")
+        archive.writestr("Dockerfile", "FROM php:8.3.35-fpm\nUSER root\n")
     return stream.getvalue()
 
 
@@ -291,6 +291,15 @@ def run():
         downloaded_report = json.loads(Path(report_download.path()).read_text())
         assert downloaded_report["scan"]["decision"] == "BLOCK"
         assert downloaded_report["deployment_allowed"] is False
+        assert {f["cve"] for f in downloaded_report["scan"]["findings"] if f.get("cve")} == {
+            "CVE-2026-109618",
+            "CVE-2026-109619",
+        }
+        expect(
+            page.locator("#detail-dialog")
+            .get_by_text("CVE-2026-109619: PHP Cross-request use-after-free", exact=False)
+            .first
+        ).to_be_visible()
         assert downloaded_report["scan"]["findings"]
         assert hostile_name == downloaded_report["project"]["name"]
         assert page.evaluate("window.__xss") is None

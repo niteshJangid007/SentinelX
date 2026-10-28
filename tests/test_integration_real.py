@@ -248,3 +248,20 @@ def test_uploaded_build_hooks_and_application_code_are_never_executed(client, tm
     assert result["decision"] == "BLOCK"
     assert marker.exists() is False
     assert any("No untrusted repository code" in item for item in result["coverage"]["limitations"])
+
+
+def test_php_runtime_cves_survive_real_scan_persistence_and_report(client):
+    _, headers = register(client, "php-runtime@example.test")
+    project_id = project(client, headers)
+    scan = upload(client, headers, project_id, archive({"Dockerfile": "FROM php:8.3.35-fpm\n"}))
+    assert scan["status"] == "completed"
+    report = client.get(BASE + "/scans/" + scan["id"] + "/report", headers=headers).json()
+    cves = [f for f in report["scan"]["findings"] if f.get("cve")]
+    assert {f["cve"] for f in cves} == {"CVE-2026-109618", "CVE-2026-109619"}
+    assert all(f["fixed_version"] == "8.3.36" and f["line"] == 1 for f in cves)
+    assert report["scan"]["coverage"]["php_runtime"]["evidence"][0]["status"] == "affected"
+    assert report["deployment_allowed"] is False
+    saved = client.get(BASE + "/findings", headers=headers).json()
+    assert {f["cve"] for f in saved if f.get("cve")} == {f["cve"] for f in cves}
+    _, other = register(client, "other-php@example.test")
+    assert client.get(BASE + "/scans/" + scan["id"] + "/report", headers=other).status_code == 404

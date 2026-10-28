@@ -54,6 +54,10 @@ Endpoints are under `/api/v1`: `/auth/register`, `/auth/login`, `/projects`, `/r
 
 The browser dashboard uses same-origin session cookies. Native clients can use `Authorization: Bearer <access_token>`; cookie-authenticated write requests must provide matching same-origin evidence. Never commit tokens or log authorization/cookie headers. Registration creates an administrator of that account's own workspace. Each account's resources are isolated by ownership; this initial backend is not a shared organization/tenant collaboration system.
 
+## PHP runtime advisories
+
+New scans detect declared PHP runtimes and match a reviewed offline catalog for **CVE-2026-109618** and **CVE-2026-109619**. Reports include evidence locations, confidence and patched-version guidance. Floating versions and Composer requirements remain unknown rather than being called safe. See [PHP runtime checks](docs/php-runtime-scanning.md) for supported inputs and limitations. This is a two-advisory runtime check, not a general dependency/container scanner.
+
 ## Scan scope
 
 Source files are treated as untrusted data. The scanner does not install repository dependencies, run project code, run Git hooks, build containers, or deploy workloads. Source acquisition is restricted to GitHub HTTPS and archive contents are bounded and validated before inspection.

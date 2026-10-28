@@ -18,6 +18,8 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 
+from . import php_runtime
+
 MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 MAX_TOTAL_BYTES = 50 * 1024 * 1024
 MAX_FILE_BYTES = 1024 * 1024
@@ -368,10 +370,12 @@ def evaluate_policy(findings: list, gates: list, policy: dict | None = None) -> 
             reason = f"{finding['severity'].upper()} finding: {finding['title']}"
             if reason not in reasons:
                 reasons.append(reason)
-    if any(g["status"] in ("FAILED", "NOT_CONFIGURED") for g in gates):
+    if any(g["status"] in ("FAILED", "NOT_CONFIGURED", "UNKNOWN") for g in gates):
         # Execution failures always fail closed regardless of configurable severity rules.
         decision = "BLOCK"
-        reasons.append("A required scanner failed, is not configured, or coverage was truncated")
+        reasons.append(
+            "A required scanner failed, is not configured, or coverage is unknown/truncated"
+        )
     return {"risk_score": risk, "decision": decision, "reasons": reasons}
 
 
@@ -428,6 +432,8 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
     files = _archive_files(data)
     findings, technologies, binary_count, text_count = [], set(), 0, 0
     analysis_errors = []
+    php_evidence = []
+    php_sources = []
     for path, content in files:
         if "\x00" in content.decode("latin1"):
             binary_count += 1
@@ -438,6 +444,11 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
             binary_count += 1
             continue
         text_count += 1
+        php_evidence.extend(php_runtime.inspect_file(path, text))
+        if len(php_evidence) > MAX_FINDINGS:
+            raise ValueError("PHP runtime evidence exceeds 2000 result limit")
+        if path.lower().endswith(".php"):
+            php_sources.append(path)
         findings.extend(_scan_secrets(path, text))
         if path.endswith(".py"):
             technologies.add("Python")
@@ -466,6 +477,15 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
             )
     if not text_count:
         raise ValueError("Archive contains no supported UTF-8 text files")
+    if php_sources and not php_evidence:
+        php_evidence.append(php_runtime._evidence(php_sources[0], 1, "php_source_without_runtime"))
+    if php_evidence:
+        technologies.add("PHP")
+        findings.extend(php_runtime.assess(php_evidence, _finding))
+        if len(findings) > MAX_FINDINGS:
+            raise ValueError(
+                "Findings exceed 2000 result limit; split the repository into smaller scans"
+            )
     elapsed = round((time.monotonic() - start) * 1000)
     gates = [
         {
@@ -484,6 +504,22 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
         gate["status"] = evaluate_policy(subset, [], policy)["decision"]
         if gate["scanner"] == "sast" and analysis_errors:
             gate["status"] = "FAILED"
+    if php_evidence:
+        runtime_findings = [f for f in findings if f["scanner"] == "runtime"]
+        runtime_status = evaluate_policy(runtime_findings, [], policy)["decision"]
+        if runtime_status != "BLOCK" and any(e["status"] == "unknown" for e in php_evidence):
+            runtime_status = "UNKNOWN"
+        gates.append(
+            {
+                "scanner": "runtime",
+                "name": "runtime",
+                "tool": "PHP advisory snapshot " + php_runtime.CATALOG_DATE,
+                "status": runtime_status,
+                "findings": len(runtime_findings),
+                "duration_ms": elapsed,
+                "coverage": "two known PHP runtime advisories; declarations only",
+            }
+        )
     for scanner, tool in (
         ("sca", "Dependency vulnerability engine"),
         ("container", "Container image scanner"),
@@ -511,10 +547,18 @@ def _scan_archive(data: bytes, policy: dict | None = None) -> dict:
             "Heuristic secret patterns; not a comprehensive secrets audit.",
             "SAST rules cover selected Python calls only, without data-flow analysis.",
             "IaC and Docker checks use a small set of configuration patterns.",
-            "Dependency CVEs, container images, live applications and CI execution are not scanned.",
+            "General dependency CVEs, container images, live applications and CI execution are not scanned.",
+            php_runtime.LIMITATION,
             "No untrusted repository code or build hooks are executed.",
         ],
     }
+    if php_evidence:
+        coverage["engines"].append("runtime")
+        coverage["php_runtime"] = {
+            "catalog_reviewed_at": php_runtime.CATALOG_DATE,
+            "evidence": php_evidence,
+            "advisories": [a[0] for a in php_runtime.ADVISORIES],
+        }
     return {
         "status": "completed",
         "commit": None,
